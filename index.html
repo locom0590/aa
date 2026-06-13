@@ -107,15 +107,14 @@
         .left-panel { left: 0; }
         .right-panel { left: 50%; }
 
-        /* Video Yerleşim Kuralları (Maksimum yazılımsal geniş açı sağlandı, siyahlıklar önlendi) */
+        /* Video Yerleşim Kuralları (Genişlik lens ile sağlandığı için CSS normal tam ekrana çekildi) */
         .panel video {
             position: absolute;
-            top: -100%;
-            left: -100%;
-            width: 300%;
-            height: 300%;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             object-fit: cover;
-            transform: scale(0.35);
             transform-origin: center center;
         }
         
@@ -131,9 +130,9 @@
             box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
         }
 
-        /* Güçlendirilmiş Aynalama Efekti (Maksimum geniş açı ölçeği entegre edildi) */
+        /* Güçlendirilmiş Aynalama Efekti */
         .mirror-effect {
-            transform: scale(-0.35, 0.35) !important;
+            transform: scaleX(-1) !important;
         }
 
         /* Konteyner Gizleme Kuralları */
@@ -232,19 +231,40 @@
             }
         }
 
-        // HASTA MODU İŞLEMLERİ
+        // HASTA MODU İŞLEMLERİ (Ultra Geniş Açı/0.5x Lens Filtresi Eklendi)
         async function startPatientApp(selection) {
             document.getElementById('menu-patient').style.display = 'none';
             document.getElementById('menu-room-display').style.display = 'flex';
 
+            // Tarayıcıya ultra geniş açılı lensi (0.5x) seçmesini söyleyen kısıtlamalar
+            const ultraWideConstraints = {
+                video: {
+                    facingMode: { exact: "environment" },
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    // Tarayıcılara geniş açılı donanımı seçmesi yönünde ipucu veren ileri seviye parametreler
+                    advanced: [
+                        { focusMode: "continuous" },
+                        { exposureMode: "continuous" },
+                        { whiteBalanceMode: "continuous" }
+                    ]
+                },
+                audio: false
+            };
+
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: { exact: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
-                    audio: false
-                });
+                // Öncelikli olarak geniş açılı donanım profilini dene
+                localStream = await navigator.mediaDevices.getUserMedia(ultraWideConstraints);
             } catch (error) {
-                console.warn("Arka kamera hatası, varsayılan açılıyor...");
-                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                console.warn("Ultra geniş açı filtresi desteklenmedi, standart kameraya dönülüyor...", error);
+                try {
+                    localStream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: { exact: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+                        audio: false
+                    });
+                } catch (fallbackError) {
+                    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                }
             }
             
             patientVideos.forEach(v => v.srcObject = localStream);
