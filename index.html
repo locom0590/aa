@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Geniş Açı VR Ayna Terapisi (3D)</title>
+    <title>VR Ayna Terapisi - Dengeli Açı ve Kırmızı Sınır</title>
     <style>
         * {
             box-sizing: border-box;
@@ -57,13 +57,14 @@
             background: #0056b3;
         }
 
-        /* VR Ana Konteyner (Ekranı sol ve sağ göz olarak ikiye böler) */
+        /* VR Ana Konteyner */
         #vr-container {
             display: none;
             width: 100%;
             height: 100%;
         }
 
+        /* Sol ve Sağ Göz Bölmeleri */
         .eye-view {
             width: 50%;
             height: 100%;
@@ -73,7 +74,7 @@
             background-color: #000;
         }
 
-        /* Her gözün kendi içindeki ikiye bölünmüş geniş açılı panelleri */
+        /* Her gözün kendi içindeki ikiye bölünmüş panelleri */
         .panel {
             position: absolute;
             top: 0;
@@ -85,14 +86,27 @@
         .left-panel { left: 0; }
         .right-panel { left: 50%; }
 
-        /* Videolar: 'contain' modunda kalarak geniş açıyı korur ve kırpma yapmaz */
+        /* Videolar: 'cover' moduna alınarak aşırı geniş açı azaltıldı ve odak artırıldı */
         video {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            object-fit: contain;
+            object-fit: cover; 
+        }
+
+        /* Her Gözün Tam Ortasına Gelecek Kalın Kırmızı Çubuk */
+        .center-divider {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 6px; /* Çubuğun kalınlığı */
+            height: 100%;
+            background-color: #ff0000; /* Kırmızı renk */
+            z-index: 5;
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.5); /* Daha belirgin olması için hafif parlama */
         }
 
         /* Yatay Ayna Efekti */
@@ -104,7 +118,7 @@
 <body>
 
     <div id="setup-menu">
-        <h1>VR GENİŞ AÇI AYNA TERAPİSİ<br><small>Sağlam Tarafı Seçiniz</small></h1>
+        <h1>VR AYNA TERAPİSİ<br><small>Sağlam Tarafı Seçiniz</small></h1>
         <div class="btn-container">
             <button onclick="startApp('sag')">SAĞ</button>
             <button onclick="startApp('sol')">SOL</button>
@@ -117,6 +131,7 @@
             <div class="panel left-panel">
                 <video id="v1" autoplay playsinline muted></video>
             </div>
+            <div class="center-divider"></div>
             <div class="panel right-panel">
                 <video id="v2" autoplay playsinline muted></video>
             </div>
@@ -126,6 +141,7 @@
             <div class="panel left-panel">
                 <video id="v3" autoplay playsinline muted></video>
             </div>
+            <div class="center-divider"></div>
             <div class="panel right-panel">
                 <video id="v4" autoplay playsinline muted></video>
             </div>
@@ -146,12 +162,11 @@
 
         async function startApp(selection) {
             try {
-                // Geniş açı için yüksek çözünürlük parametrelerini koruyoruz
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: {
                         facingMode: { exact: "environment" },
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 }
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
                     },
                     audio: false
                 });
@@ -173,13 +188,10 @@
                 }
             }
 
-            // Seçim Mantığı (Geniş Açılı Stereoskopik Mod):
-            // Sol ve Sağ göz alanlarındaki ilgili panelleri ayna moduna alıyoruz.
+            // Seçim Mantığı
             if (selection === 'sag') {
-                // Sağlam taraf Sağ ise: Her iki gözün de SOL paneli ayna (yansıma) olur.
                 document.querySelectorAll('.left-panel video').forEach(v => v.classList.add('mirror-effect'));
             } else if (selection === 'sol') {
-                // Sağlam taraf Sol ise: Her iki gözün de SAĞ paneli ayna (yansıma) olur.
                 document.querySelectorAll('.right-panel video').forEach(v => v.classList.add('mirror-effect'));
             }
 
