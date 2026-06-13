@@ -107,7 +107,7 @@
         .left-panel { left: 0; }
         .right-panel { left: 50%; }
 
-        /* Video Yerleşim Kuralları (Genişlik lens ile sağlandığı için CSS normal tam ekrana çekildi) */
+        /* Video Yerleşim Kuralları */
         .panel video {
             position: absolute;
             top: 0;
@@ -161,11 +161,20 @@
     </div>
 
     <div id="menu-patient" class="menu-panel" style="display:none;">
-        <h2>Sağlam Tarafı Seçip Yayını Başlatın</h2>
+        <h2>Sağlam Tarafı Seçin</h2>
         <div class="mode-selection">
-            <button class="btn-primary" onclick="startPatientApp('sag')">SAĞ</button>
-            <button class="btn-primary" onclick="startPatientApp('sol')">SOL</button>
+            <button class="btn-primary" onclick="selectSide('sag')">SAĞ</button>
+            <button class="btn-primary" onclick="selectSide('sol')">SOL</button>
             <button class="btn-secondary" onclick="location.reload()">Geri</button>
+        </div>
+    </div>
+
+    <div id="menu-zoom" class="menu-panel" style="display:none;">
+        <h2>Çalışma Alanını Seçin</h2>
+        <div class="mode-selection">
+            <button class="btn-primary" onclick="startPatientApp('x1')">Sadece Eller (x1 Standart Açı)</button>
+            <button class="btn-success" onclick="startPatientApp('x05')">Dirsekler Dahil (x0.5 Geniş Açı)</button>
+            <button class="btn-secondary" onclick="backToSideSelection()">Geri</button>
         </div>
     </div>
 
@@ -212,6 +221,7 @@
         let peer = null;
         let localStream = null;
         let myRoomId = "";
+        let selectedSide = ""; // Seçilen tarafı hafızada tutmak için global değişken
 
         const patientVideos = [
             document.getElementById('v1'), document.getElementById('v2'),
@@ -231,32 +241,51 @@
             }
         }
 
-        // HASTA MODU İŞLEMLERİ (Ultra Geniş Açı/0.5x Lens Filtresi Eklendi)
-        async function startPatientApp(selection) {
+        // Taraf seçimi sonrası açı seçimine yönlendirme adımı
+        function selectSide(side) {
+            selectedSide = side;
             document.getElementById('menu-patient').style.display = 'none';
+            document.getElementById('menu-zoom').style.display = 'flex';
+        }
+
+        function backToSideSelection() {
+            document.getElementById('menu-zoom').style.display = 'none';
+            document.getElementById('menu-patient').style.display = 'flex';
+        }
+
+        // HASTA MODU İŞLEMLERİ (Açı Seçimine Göre Çalışır)
+        async function startPatientApp(zoomMode) {
+            document.getElementById('menu-zoom').style.display = 'none';
             document.getElementById('menu-room-display').style.display = 'flex';
 
-            // Tarayıcıya ultra geniş açılı lensi (0.5x) seçmesini söyleyen kısıtlamalar
-            const ultraWideConstraints = {
-                video: {
-                    facingMode: { exact: "environment" },
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 },
-                    // Tarayıcılara geniş açılı donanımı seçmesi yönünde ipucu veren ileri seviye parametreler
-                    advanced: [
-                        { focusMode: "continuous" },
-                        { exposureMode: "continuous" },
-                        { whiteBalanceMode: "continuous" }
-                    ]
-                },
+            let constraints = {
+                video: { facingMode: { exact: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
                 audio: false
             };
 
+            // Eğer hasta x0.5 (Geniş Açı/Dirsek) modunu seçtiyse, tarayıcıya ek parametre ipuçları verilir
+            if (zoomMode === 'x05') {
+                constraints.video.advanced = [
+                    { focusMode: "continuous" },
+                    { exposureMode: "continuous" }
+                ];
+            }
+
             try {
-                // Öncelikli olarak geniş açılı donanım profilini dene
-                localStream = await navigator.mediaDevices.getUserMedia(ultraWideConstraints);
+                // Kamera akışını başlatmayı dene
+                if (zoomMode === 'x05' && navigator.mediaDevices.enumerateDevices) {
+                    // Cihazdaki tüm kameraları listele
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                    
+                    // Geniş açılı arka kameralar genelde listenin sonlarında yer alır, akıllı eşleşme denemesi
+                    if (videoDevices.length > 1) {
+                        constraints.video.deviceId = { exact: videoDevices[videoDevices.length - 1].deviceId };
+                    }
+                }
+                localStream = await navigator.mediaDevices.getUserMedia(constraints);
             } catch (error) {
-                console.warn("Ultra geniş açı filtresi desteklenmedi, standart kameraya dönülüyor...", error);
+                console.warn("Seçilen spesifik kamera modu yüklenemedi, varsayılana dönülüyor...");
                 try {
                     localStream = await navigator.mediaDevices.getUserMedia({
                         video: { facingMode: { exact: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
@@ -269,8 +298,8 @@
             
             patientVideos.forEach(v => v.srcObject = localStream);
 
-            // Hasta 3D ekranı bölgesel aynalama ayarı
-            if (selection === 'sag') {
+            // Hasta 3D ekranı bölgesel aynalama ayarı (Hafızadaki selectedSide kullanılır)
+            if (selectedSide === 'sag') {
                 document.querySelectorAll('#vr-container .left-panel video').forEach(v => v.classList.add('mirror-effect'));
             } else {
                 document.querySelectorAll('#vr-container .right-panel video').forEach(v => v.classList.add('mirror-effect'));
@@ -281,7 +310,7 @@
 
             peer = new Peer(myRoomId);
             peer.on('call', function(call) {
-                call.answer(localStream, { metadata: { side: selection } });
+                call.answer(localStream, { metadata: { side: selectedSide } });
             });
         }
 
