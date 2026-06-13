@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>VR Ayna Terapisi</title>
+    <title>VR Ayna Terapisi - Uzak Odak</title>
     <style>
         * {
             box-sizing: border-box;
@@ -37,6 +37,7 @@
             margin-bottom: 30px;
             font-size: 1.5rem;
             text-align: center;
+            line-height: 1.4;
         }
         .btn-container {
             display: flex;
@@ -57,36 +58,44 @@
             background: #0056b3;
         }
 
-        /* VR Ekran Yapısı (Stereoskopik İkiye Bölünmüş Ana Ekran) */
+        /* VR Ekran Yapısı (Sol / Sağ Göz Ana Bölmeleri) */
         #vr-container {
             display: none;
             width: 100%;
             height: 100%;
         }
 
-        /* Sol ve Sağ Göz Alanları */
         .eye-view {
             width: 50%;
             height: 100%;
             float: left;
             position: relative;
             overflow: hidden;
-            border-right: 1px solid rgba(255,255,255,0.1); /* Merkez çizgisi rehberi */
+            background-color: #000;
         }
 
-        /* Her gözün kendi içindeki ikiye bölünmüş yapısı */
+        /* Görüntü Uzaklığını İki Katına Çıkarma Ayarı:
+           Kamerayı daha uzakta hissettirmek için genişliği daralttık (%50'den %32'ye çektik).
+           Göz yorulmasını önlemek için sol ve sağ yarım küreleri merkeze göre hizaladık.
+        */
         .half-screen {
             position: absolute;
-            top: 0;
-            width: 50%;
-            height: 100%;
+            top: 15%; /* Üstten ve alttan daraltarak sinematik uzaklık hissi verir */
+            width: 32%; /* Yatayda küçülterek objeleri 2 kat daha uzaktaymış gibi gösterir */
+            height: 70%;
             overflow: hidden;
+            border-radius: 4px;
         }
 
-        .left-half { left: 0; }
-        .right-half { left: 50%; }
+        /* Sol Göz Odası İçindeki Dağılım */
+        #left-eye .left-half  { left: 16%; }
+        #left-eye .right-half { left: 52%; }
 
-        /* Video Elementleri Şablonu */
+        /* Sağ Göz Odası İçindeki Dağılım */
+        #right-eye .left-half  { left: 16%; }
+        #right-eye .right-half { left: 52%; }
+
+        /* Video Elementleri */
         video {
             position: absolute;
             top: 50%;
@@ -97,9 +106,9 @@
             object-fit: cover;
         }
 
-        /* Efekt Sınıfları */
+        /* Yatay Ayna Yansıtma Efekti */
         .mirror-effect {
-            transform: translate(-50%, -50%) scaleX(-1); /* Yatayda ayna yansıması */
+            transform: translate(-50%, -50%) scaleX(-1);
         }
     </style>
 </head>
@@ -147,25 +156,22 @@
         ];
 
         async function startApp(selection) {
-            // 1. Kullanıcıdan arka kamera izni isteyelim
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: {
-                        facingMode: { exact: "environment" }, // Arka kamerayı zorunlu kılar
+                        facingMode: { exact: "environment" },
                         width: { ideal: 1280 },
                         height: { ideal: 720 }
                     },
                     audio: false
                 });
                 
-                // Video akışlarını elementlere bağla
                 videos.forEach(video => {
                     video.srcObject = stream;
                 });
 
             } catch (error) {
-                console.warn("Arka kamera bulunamadı veya izin verilmedi, varsayılan kamera açılıyor...", error);
-                // Eğer bilgisayarda test ediyorsanız veya arka kamera ismi tam eşleşmediyse fallback:
+                console.warn("Arka kamera bulunamadı, varsayılan kamera açılıyor...", error);
                 try {
                     const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
                     videos.forEach(video => {
@@ -177,18 +183,13 @@
                 }
             }
 
-            // 2. Ayna Modu Konfigürasyonu
-            // Seçilen taraf "Gerçek Görüntü", diğer taraf ise onun "Yansıması (scaleX(-1))" olacak.
-            // Bu mantık VR Box içindeki her iki göz (sol-sağ) ekranı için de birebir klonlanır.
+            // Ayna Modu Mantığı
             if (selection === 'sag') {
-                // Sağ taraf normal, sol taraf sağın aynası
                 document.querySelectorAll('.left-half video').forEach(v => v.classList.add('mirror-effect'));
             } else if (selection === 'sol') {
-                // Sol taraf normal, sağ taraf solun aynası
                 document.querySelectorAll('.right-half video').forEach(v => v.classList.add('mirror-effect'));
             }
 
-            // 3. Ekranı Tam Ekran Yap ve VR Moduna Geç
             setupMenu.style.display = 'none';
             vrContainer.style.display = 'block';
             
@@ -199,10 +200,8 @@
             const element = document.documentElement;
             if (element.requestFullscreen) {
                 element.requestFullscreen();
-            } else if (element.webkitRequestFullscreen) { /* Safari */
+            } else if (element.webkitRequestFullscreen) {
                 element.webkitRequestFullscreen();
-            } else if (element.msRequestFullscreen) { /* IE11 */
-                element.msRequestFullscreen();
             }
         }
     </script>
