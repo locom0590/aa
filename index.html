@@ -4,11 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>VR Ayna Terapisi & Senkronize İzleme</title>
-    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 
     <style>
         * {
@@ -194,7 +194,6 @@
         let selectedSide = "sag";
         let isObserver = false;
 
-        // Three.js Global Kurulum Değişkenleri
         let scenes = {}, cameras = {}, renderers = {}, handModels = {};
         const connections = [[0,1], [1,2], [2,3], [3,4], [0,5], [5,6], [6,7], [7,8], [5,9], [9,10], [10,11], [11,12], [9,13], [13,14], [14,15], [15,16], [0,17], [17,18], [18,19], [19,20], [5,17]];
 
@@ -208,31 +207,26 @@
             }
         }
 
-        // Three.js 3D Sahne Hazırlayıcı (Hafifletilmiş Mimaride Sıfır Kasılma)
         function init3D(canvasId, key) {
             const canvas = document.getElementById(canvasId);
             const scene = new THREE.Scene();
             scene.background = new THREE.Color(0x000000);
 
-            // Geniş açı etkisi yaratmak için Kamera FOV değerini 75 yaptık ve biraz geriye yerleştirdik
             const camera = new THREE.PerspectiveCamera(75, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
-            camera.position.set(0, 0, 12); 
+            camera.position.set(0, 0, 10); 
 
             const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
             renderer.setSize(canvas.clientWidth, canvas.clientHeight);
 
-            // 3D İskelet El Yapısı Grubu
             const handGroup = new THREE.Group();
-            
-            // 21 Eklem Noktası Küresi
-            const jointGeo = new THREE.SphereGeometry(0.25, 8, 8);
+            const jointGeo = new THREE.SphereGeometry(0.22, 8, 8);
             const jointMat = new THREE.MeshBasicMaterial({ color: 0x00ffcc });
+            
             for(let i=0; i<21; i++) {
                 const mesh = new THREE.Mesh(jointGeo, jointMat);
                 handGroup.add(mesh);
             }
 
-            // Eklemleri Birleştiren Çizgiler (Kemikler)
             const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 });
             connections.forEach(() => {
                 const geometry = new THREE.BufferGeometry();
@@ -243,36 +237,30 @@
             });
 
             scene.add(handGroup);
-            
             scenes[key] = scene;
             cameras[key] = camera;
             renderers[key] = renderer;
             handModels[key] = handGroup;
         }
 
-        // Yapay Zekadan Gelen El Noktalarını 3D Evrene Güncelleyen Fonksiyon
         function update3DHand(landmarks, key, shouldMirror) {
             const handGroup = handModels[key];
             if (!handGroup || !landmarks) return;
 
-            // 21 Eklem Yerleşimi ve Aynalama Motoru
             for (let i = 0; i < 21; i++) {
-                let x = (landmarks[i].x - 0.5) * 15;
-                let y = -(landmarks[i].y - 0.5) * 15;
+                let x = (landmarks[i].x - 0.5) * 14;
+                let y = -(landmarks[i].y - 0.5) * 14;
                 let z = -landmarks[i].z * 10;
 
-                if (shouldMirror) x = -x; // Ayna İllüzyonunu tetikleyen kritik satır
-
+                if (shouldMirror) x = -x;
                 handGroup.children[i].position.set(x, y, z);
             }
 
-            // Kemik Çizgilerinin Güncellenmesi
             let lineIdx = 21;
             connections.forEach(pair => {
                 const p1 = handGroup.children[pair[0]].position;
                 const p2 = handGroup.children[pair[1]].position;
                 const line = handGroup.children[lineIdx];
-                
                 const pos = line.geometry.attributes.position.array;
                 pos[0] = p1.x; pos[1] = p1.y; pos[2] = p1.z;
                 pos[3] = p2.x; pos[4] = p2.y; pos[5] = p2.z;
@@ -283,41 +271,37 @@
             renderers[key].render(scenes[key], cameras[key]);
         }
 
-        // HASTA MODU BAŞLANGICI
         async function startPatientApp(selection) {
             selectedSide = selection;
             document.getElementById('menu-patient').style.display = 'none';
             document.getElementById('menu-room-display').style.display = 'flex';
 
-            // VR Sahnesi Başlatma
             init3D('leftEyeCanvas', 'left');
             init3D('rightEyeCanvas', 'right');
 
             const videoElement = document.getElementById('hidden-video');
 
-            // MediaPipe El Takip Kurulumu
+            // Güvenlik duvarını aşmak için yerel tescilli asset yönlendirmesi
             const hands = new Hands({
-                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424515/${file}`
             });
+
             hands.setOptions({
                 maxNumHands: 1,
                 modelComplexity: 1,
-                minDetectionConfidence: 0.5,
-                minTrackingConfidence: 0.5
+                minDetectionConfidence: 0.6,
+                minTrackingConfidence: 0.6
             });
 
             hands.onResults((results) => {
                 if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                     const landmarks = results.multiHandLandmarks[0];
-                    
-                    // Seçilen tarafa göre gözlere aynalı/aynasız veriyi basma kuralları
                     const mirrorLeft = (selectedSide === 'sag');
                     const mirrorRight = (selectedSide === 'sag');
 
                     update3DHand(landmarks, 'left', mirrorLeft);
                     update3DHand(landmarks, 'right', mirrorRight);
 
-                    // Terapiste anlık el koordinat matrisini data-channel ile gönderme
                     if (peer && peer.connections) {
                         for (let connId in peer.connections) {
                             peer.connections[connId].forEach(conn => {
@@ -330,19 +314,29 @@
                 }
             });
 
-            const camera = new Camera(videoElement, {
-                onFrame: async () => { await hands.send({ image: videoElement }); },
-                width: 640, height: 480
-            });
-            camera.start();
+            // Mobil Safari/Chrome için video kısıtlamalarını esnetme
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "environment", width: 640, height: 480 },
+                    audio: false
+                });
+                videoElement.srcObject = stream;
+                await videoElement.play();
+                
+                const camera = new Camera(videoElement, {
+                    onFrame: async () => { await hands.send({ image: videoElement }); },
+                    width: 640, height: 480
+                });
+                camera.start();
+            } catch (err) {
+                console.error("Kamera başlatma hatası:", err);
+                alert("Kamera izni verilmedi veya tarayıcı kısıtlamasına takıldı.");
+            }
 
             myRoomId = Math.floor(1000 + Math.random() * 9000).toString();
             document.getElementById('room-id-text').innerText = myRoomId;
 
             peer = new Peer(myRoomId);
-            peer.on('connection', function(conn) {
-                // Terapist bağlandığında tokalaşma doğrulaması
-            });
         }
 
         function activateVRView() {
@@ -352,9 +346,11 @@
             const element = document.documentElement;
             if (element.requestFullscreen) element.requestFullscreen();
             else if (element.webkitRequestFullscreen) element.webkitRequestFullscreen();
+            
+            // Ekran açıldığında WebGL render alanlarını zorla tetikle
+            window.dispatchEvent(new Event('resize'));
         }
 
-        // TERAPİST MODU BAŞLANGICI
         function startObserverApp() {
             const targetId = document.getElementById('target-room-id').value.trim();
             if (!targetId) { alert("Lütfen geçerli bir kod girin!"); return; }
@@ -368,14 +364,12 @@
             peer.on('open', function() {
                 const conn = peer.connect(targetId);
                 conn.on('data', function(data) {
-                    // Hastadan gelen koordinat verilerini 2D ekranda simüle etme
                     const mirrorObserver = (data.side === 'sag');
                     update3DHand(data.landmarks, 'observer', mirrorObserver);
                 });
             });
         }
 
-        // Ekran boyutları değiştiğinde 3D motorların bozulmaması için otomatik scale ayarı
         window.addEventListener('resize', () => {
             ['left', 'right', 'observer'].forEach(key => {
                 if (renderers[key]) {
@@ -383,6 +377,7 @@
                     cameras[key].aspect = canvas.clientWidth / canvas.clientHeight;
                     cameras[key].updateProjectionMatrix();
                     renderers[key].setSize(canvas.clientWidth, canvas.clientHeight);
+                    renderers[key].render(scenes[key], cameras[key]);
                 }
             });
         });
