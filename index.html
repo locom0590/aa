@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>VR Ayna Terapisi - İdeal Dengeli Açı</title>
+    <title>VR Ayna Terapisi & Canlı İzleme Sunumu</title>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -16,10 +17,11 @@
             overflow: hidden;
             background-color: #000;
             font-family: sans-serif;
+            color: white;
         }
 
-        /* Giriş Menüsü */
-        #setup-menu {
+        /* Giriş Panelleri */
+        .menu-panel {
             position: absolute;
             top: 0;
             left: 0;
@@ -31,40 +33,62 @@
             justify-content: center;
             align-items: center;
             z-index: 10;
-            color: white;
+            padding: 20px;
         }
-        h1 {
-            margin-bottom: 30px;
-            font-size: 1.5rem;
-            text-align: center;
-        }
-        .btn-container {
+        h1 { margin-bottom: 25px; font-size: 1.6rem; text-align: center; }
+        h2 { margin-bottom: 15px; font-size: 1.2rem; color: #aaa; }
+        
+        .mode-selection {
             display: flex;
+            flex-direction: column;
             gap: 20px;
+            width: 100%;
+            max-width: 320px;
         }
+        
         button {
-            padding: 15px 40px;
-            font-size: 1.2rem;
+            padding: 15px;
+            font-size: 1.1rem;
             font-weight: bold;
             cursor: pointer;
             border: none;
             border-radius: 8px;
-            background: #007bff;
             color: white;
             transition: background 0.2s;
         }
-        button:active {
-            background: #0056b3;
+        .btn-primary { background: #007bff; }
+        .btn-success { background: #28a745; }
+        .btn-secondary { background: #6c757d; margin-top: 10px; width: 100%; }
+        
+        input {
+            padding: 12px;
+            font-size: 1.1rem;
+            border-radius: 6px;
+            border: 1px solid #444;
+            background: #222;
+            color: white;
+            text-align: center;
+            margin-bottom: 10px;
+            width: 100%;
         }
 
-        /* VR Ana Konteyner */
+        .room-id-display {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #ffc107;
+            background: #222;
+            padding: 10px 20px;
+            border-radius: 6px;
+            margin: 15px 0;
+            letter-spacing: 2px;
+        }
+
+        /* VR Ekran Yapısı (Hasta) */
         #vr-container {
             display: none;
             width: 100%;
             height: 100%;
         }
-
-        /* Sol ve Sağ Göz Bölmeleri */
         .eye-view {
             width: 50%;
             height: 100%;
@@ -73,8 +97,6 @@
             overflow: hidden;
             background-color: #000;
         }
-
-        /* Her gözün kendi içindeki ikiye bölünmüş panelleri */
         .panel {
             position: absolute;
             top: 0;
@@ -82,11 +104,23 @@
             height: 100%;
             overflow: hidden;
         }
-
         .left-panel { left: 0; }
         .right-panel { left: 50%; }
 
-        /* Videolar: 'contain' tabanlı ama %18 yakınlaştırılmış (Tam ikisinin arası denge) */
+        /* İzleyici Ekran Yapısı (Terapist) */
+        #observer-container {
+            display: none;
+            width: 100%;
+            height: 100%;
+            background: #000;
+        }
+        #observer-video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        /* Ortak Video ve Çubuk Kuralları */
         video {
             position: absolute;
             top: 0;
@@ -94,13 +128,9 @@
             width: 100%;
             height: 100%;
             object-fit: contain;
-            /* Görüntüyü hafifçe büyüterek (1.18 kat) aşırı geniş açıyı daralttık, 
-               ancak dirseklerin kaybolacağı kadar da çok kırpmadık. */
             transform: scale(1.18); 
             transform-origin: center center;
         }
-
-        /* Kalın Kırmızı Merkez Sınır Çubuğu */
         .center-divider {
             position: absolute;
             top: 0;
@@ -112,11 +142,7 @@
             z-index: 5;
             box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
         }
-
-        /* Yatay Ayna Efekti uygulandığında scaleX(-1) ile 1.18'lik büyütmeyi birleştiriyoruz */
-        .left-panel video.mirror-effect {
-            transform: scale(-1.18, 1.18);
-        }
+        .left-panel video.mirror-effect, 
         .right-panel video.mirror-effect {
             transform: scale(-1.18, 1.18);
         }
@@ -124,98 +150,147 @@
 </head>
 <body>
 
-    <div id="setup-menu">
-        <h1>VR AYNA TERAPİSİ<br><small>Sağlam Tarafı Seçiniz</small></h1>
-        <div class="btn-container">
-            <button onclick="startApp('sag')">SAĞ</button>
-            <button onclick="startApp('sol')">SOL</button>
+    <div id="menu-role" class="menu-panel">
+        <h1>VR AXIS REHABILITATION</h1>
+        <div class="mode-selection">
+            <button class="btn-primary" onclick="selectRole('patient')">HASTA MODU (VR Cihazı)</button>
+            <button class="btn-success" onclick="selectRole('observer')">TERAPİST MODU (İzleme)</button>
+        </div>
+    </div>
+
+    <div id="menu-patient" class="menu-panel" style="display:none;">
+        <h2>Sağlam Tarafı Seçip Yayını Başlatın</h2>
+        <div class="mode-selection">
+            <button class="btn-primary" onclick="startPatientApp('sag')">SAĞ</button>
+            <button class="btn-primary" onclick="startPatientApp('sol')">SOL</button>
+            <button class="btn-secondary" onclick="location.reload()">Geri</button>
+        </div>
+    </div>
+
+    <div id="menu-room-display" class="menu-panel" style="display:none;">
+        <h2>Terapist İçin Bağlantı Kodu:</h2>
+        <div class="room-id-display" id="room-id-text">Üretiliyor...</div>
+        <p style="color:#aaa; text-align:center; font-size:0.9rem; margin-bottom:20px;">
+            Bu kodu izleyici cihaza girip bağlantı kurulduktan sonra<br>telefonu VR Box'a yerleştirebilirsiniz.
+        </p>
+        <button class="btn-success" style="width:100%; max-width:320px;" onclick="activateVRView()">VR EKRANINA GEÇ</button>
+    </div>
+
+    <div id="menu-observer" class="menu-panel" style="display:none;">
+        <h2>Bağlanılacak Oda Kodunu Girin</h2>
+        <div class="mode-selection">
+            <input type="text" id="target-room-id" placeholder="Örn: 4821">
+            <button class="btn-success" onclick="startObserverApp()">CANLI YAYINI İZLE</button>
+            <button class="btn-secondary" onclick="location.reload()">Geri</button>
         </div>
     </div>
 
     <div id="vr-container">
-        
         <div class="eye-view" id="left-eye">
-            <div class="panel left-panel">
-                <video id="v1" autoplay playsinline muted></video>
-            </div>
+            <div class="panel left-panel"><video id="v1" autoplay playsinline muted></video></div>
             <div class="center-divider"></div>
-            <div class="panel right-panel">
-                <video id="v2" autoplay playsinline muted></video>
-            </div>
+            <div class="panel right-panel"><video id="v2" autoplay playsinline muted></video></div>
         </div>
-
         <div class="eye-view" id="right-eye">
-            <div class="panel left-panel">
-                <video id="v3" autoplay playsinline muted></video>
-            </div>
+            <div class="panel left-panel"><video id="v3" autoplay playsinline muted></video></div>
             <div class="center-divider"></div>
-            <div class="panel right-panel">
-                <video id="v4" autoplay playsinline muted></video>
-            </div>
+            <div class="panel right-panel"><video id="v4" autoplay playsinline muted></video></div>
         </div>
+    </div>
 
+    <div id="observer-container">
+        <video id="observer-video" autoplay playsinline></video>
     </div>
 
     <script>
-        const setupMenu = document.getElementById('setup-menu');
-        const vrContainer = document.getElementById('vr-container');
-        
+        let peer = null;
+        let localStream = null;
+        let myRoomId = "";
+
         const videos = [
-            document.getElementById('v1'),
-            document.getElementById('v2'),
-            document.getElementById('v3'),
-            document.getElementById('v4')
+            document.getElementById('v1'), document.getElementById('v2'),
+            document.getElementById('v3'), document.getElementById('v4')
         ];
 
-        async function startApp(selection) {
+        function selectRole(role) {
+            document.getElementById('menu-role').style.display = 'none';
+            if (role === 'patient') {
+                document.getElementById('menu-patient').style.display = 'flex';
+            } else {
+                document.getElementById('menu-observer').style.display = 'flex';
+            }
+        }
+
+        // HASTA REJİMİ
+        async function startPatientApp(selection) {
+            document.getElementById('menu-patient').style.display = 'none';
+            document.getElementById('menu-room-display').style.display = 'flex';
+
+            // 1. Kamerayı Aç
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        facingMode: { exact: "environment" },
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
-                    },
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { exact: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
                     audio: false
                 });
-                
-                videos.forEach(video => {
-                    video.srcObject = stream;
-                });
-
+                videos.forEach(v => v.srcObject = localStream);
             } catch (error) {
-                console.warn("Arka kamera hatası, varsayılan kameraya geçiliyor...", error);
-                try {
-                    const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-                    videos.forEach(video => {
-                        video.srcObject = fallbackStream;
-                    });
-                } catch (err) {
-                    alert("Kamera açılmadı: " + err.message);
-                    return;
-                }
+                console.warn("Arka kamera hatası, varsayılan açılıyor...");
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                videos.forEach(v => v.srcObject = localStream);
             }
 
-            // Seçim Mantığı ve Ayna Efektinin Büyütme Katsayısıyla Eşleşmesi
+            // Ayna yön ayarı
             if (selection === 'sag') {
                 document.querySelectorAll('.left-panel video').forEach(v => v.classList.add('mirror-effect'));
-            } else if (selection === 'sol') {
+            } else {
                 document.querySelectorAll('.right-panel video').forEach(v => v.classList.add('mirror-effect'));
             }
 
-            // Arayüzü değiştir ve tam ekrana geç
-            setupMenu.style.display = 'none';
-            vrContainer.style.display = 'block';
+            // 2. Peer sunucusuna bağlan ve rastgele 4 haneli oda ID üret
+            myRoomId = Math.floor(1000 + Math.random() * 9000).toString();
+            document.getElementById('room-id-text').innerText = myRoomId;
+
+            peer = new Peer(myRoomId);
             
-            triggerFullscreen();
+            // Terapist bağlandığında görüntüyü ona gönder
+            peer.on('call', function(call) {
+                call.answer(localStream);
+            });
         }
 
-        function triggerFullscreen() {
+        function activateVRView() {
+            document.getElementById('menu-room-display').style.display = 'none';
+            document.getElementById('vr-container').style.display = 'block';
+            
+            // Tam ekrana geç
             const element = document.documentElement;
-            if (element.requestFullscreen) {
-                element.requestFullscreen();
-            } else if (element.webkitRequestFullscreen) {
-                element.webkitRequestFullscreen();
-            }
+            if (element.requestFullscreen) element.requestFullscreen();
+            else if (element.webkitRequestFullscreen) element.webkitRequestFullscreen();
+        }
+
+        // TERAPİST REJİMİ
+        function startObserverApp() {
+            const targetId = document.getElementById('target-room-id').value.trim();
+            if (!targetId) { alert("Lütfen geçerli bir kod girin!"); return; }
+
+            document.getElementById('menu-observer').style.display = 'none';
+            document.getElementById('observer-container').style.display = 'block';
+
+            // Rastgele bir izleyici kimliğiyle sunucuya bağlan
+            peer = new Peer();
+            
+            peer.on('open', function() {
+                // Boş bir akış yaratıp hastayı ara (WebRTC kuralları gereği)
+                const dummyCanvas = document.createElement('canvas');
+                const dummyStream = dummyCanvas.captureStream ? dummyCanvas.captureStream() : null;
+                
+                const call = peer.call(targetId, dummyStream);
+                
+                call.on('stream', function(remoteStream) {
+                    const obsVideo = document.getElementById('observer-video');
+                    obsVideo.srcObject = remoteStream;
+                });
+            });
         }
     </script>
 </body>
