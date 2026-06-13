@@ -107,7 +107,7 @@
         .left-panel { left: 0; }
         .right-panel { left: 50%; }
 
-        /* Video Yerleşim Kuralları */
+        /* Video Yerleşim Kuralları (Görüş açısı %35 genişletildi) */
         .panel video {
             position: absolute;
             top: 0;
@@ -115,6 +115,7 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
+            transform: scale(0.65);
             transform-origin: center center;
         }
         
@@ -130,9 +131,9 @@
             box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
         }
 
-        /* Güçlendirilmiş Aynalama Efekti */
+        /* Güçlendirilmiş Aynalama Efekti (Görüş açısı artışı dahil edildi) */
         .mirror-effect {
-            transform: scaleX(-1) !important;
+            transform: scale(-0.65, 0.65) !important;
         }
 
         /* Konteyner Gizleme Kuralları */
