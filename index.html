@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>VR Ayna Terapisi - Dengeli Açı ve Kırmızı Sınır</title>
+    <title>VR Ayna Terapisi - İdeal Dengeli Açı</title>
     <style>
         * {
             box-sizing: border-box;
@@ -86,32 +86,39 @@
         .left-panel { left: 0; }
         .right-panel { left: 50%; }
 
-        /* Videolar: 'cover' moduna alınarak aşırı geniş açı azaltıldı ve odak artırıldı */
+        /* Videolar: 'contain' tabanlı ama %18 yakınlaştırılmış (Tam ikisinin arası denge) */
         video {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            object-fit: cover; 
+            object-fit: contain;
+            /* Görüntüyü hafifçe büyüterek (1.18 kat) aşırı geniş açıyı daralttık, 
+               ancak dirseklerin kaybolacağı kadar da çok kırpmadık. */
+            transform: scale(1.18); 
+            transform-origin: center center;
         }
 
-        /* Her Gözün Tam Ortasına Gelecek Kalın Kırmızı Çubuk */
+        /* Kalın Kırmızı Merkez Sınır Çubuğu */
         .center-divider {
             position: absolute;
             top: 0;
             left: 50%;
             transform: translateX(-50%);
-            width: 6px; /* Çubuğun kalınlığı */
+            width: 6px;
             height: 100%;
-            background-color: #ff0000; /* Kırmızı renk */
+            background-color: #ff0000;
             z-index: 5;
-            box-shadow: 0 0 10px rgba(255, 0, 0, 0.5); /* Daha belirgin olması için hafif parlama */
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
         }
 
-        /* Yatay Ayna Efekti */
-        .mirror-effect {
-            transform: scaleX(-1);
+        /* Yatay Ayna Efekti uygulandığında scaleX(-1) ile 1.18'lik büyütmeyi birleştiriyoruz */
+        .left-panel video.mirror-effect {
+            transform: scale(-1.18, 1.18);
+        }
+        .right-panel video.mirror-effect {
+            transform: scale(-1.18, 1.18);
         }
     </style>
 </head>
@@ -188,7 +195,7 @@
                 }
             }
 
-            // Seçim Mantığı
+            // Seçim Mantığı ve Ayna Efektinin Büyütme Katsayısıyla Eşleşmesi
             if (selection === 'sag') {
                 document.querySelectorAll('.left-panel video').forEach(v => v.classList.add('mirror-effect'));
             } else if (selection === 'sol') {
