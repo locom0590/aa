@@ -114,6 +114,7 @@
             height: 100%;
             background: #000;
             position: relative;
+            transition: transform 0.3s ease;
         }
         
         /* Terapist ekranındaki video alanı */
@@ -121,7 +122,10 @@
             width: 100%;
             height: 100%;
             object-fit: contain;
-            transition: transform 0.3s ease;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1; /* Video alt katmana alındı */
         }
 
         /* Ortak Video ve Çubuk Kuralları */
@@ -143,7 +147,7 @@
             width: 6px;
             height: 100%;
             background-color: #ff0000;
-            z-index: 5;
+            z-index: 5; /* Çizgi videonun üstünde kalacak şekilde en üst katmana çıkarıldı */
             box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
         }
         
@@ -163,10 +167,10 @@
 
         /* Terapist Ekranı İçin Dinamik Ayna Efektleri (DÜZELTİLDİ) */
         .observer-mirror-sag {
-            transform: scaleX(-1); /* JavaScript'teki 'sag' seçimiyle eşleşti */
+            transform: scaleX(-1); /* Kapsayıcıya uygulanarak çakışma önlendi */
         }
         .observer-mirror-sol {
-            transform: scaleX(-1); /* JavaScript'teki 'sol' seçimiyle eşleşti */
+            transform: scaleX(-1); /* Kapsayıcıya uygulanarak çakışma önlendi */
         }
     </style>
 </head>
@@ -302,15 +306,15 @@
             if (!targetId) { alert("Lütfen geçerli bir kod girin!"); return; }
 
             document.getElementById('menu-observer').style.display = 'none';
-            document.getElementById('observer-container').style.display = 'block';
+            
+            // DÜZELTME: Aynalama sınıfını video yerine ana kapsayıcıya (container) uyguluyoruz
+            const obsContainer = document.getElementById('observer-container');
+            obsContainer.style.display = 'block';
 
-            const obsVideo = document.getElementById('observer-video');
-
-            // Klinik Senkronizasyon: Terapist ekranındaki ham videoyu hastanın seçimine göre aynala
             if (selectedSide === 'sag') {
-                obsVideo.classList.add('observer-mirror-sag');
+                obsContainer.classList.add('observer-mirror-sag');
             } else {
-                obsVideo.classList.add('observer-mirror-sol');
+                obsContainer.classList.add('observer-mirror-sol');
             }
 
             peer = new Peer();
@@ -320,6 +324,7 @@
                 
                 const call = peer.call(targetId, dummyStream);
                 call.on('stream', function(remoteStream) {
+                    const obsVideo = document.getElementById('observer-video');
                     obsVideo.srcObject = remoteStream;
                 });
             });
