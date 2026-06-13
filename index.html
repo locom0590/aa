@@ -107,15 +107,15 @@
         .left-panel { left: 0; }
         .right-panel { left: 50%; }
 
-        /* Video Yerleşim Kuralları (Geniş açı artırıldı, taşma payları siyahlığı önleyecek şekilde büyütüldü) */
+        /* Video Yerleşim Kuralları (Maksimum yazılımsal geniş açı sağlandı, siyahlıklar önlendi) */
         .panel video {
             position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
+            top: -100%;
+            left: -100%;
+            width: 300%;
+            height: 300%;
             object-fit: cover;
-            transform: scale(0.5);
+            transform: scale(0.35);
             transform-origin: center center;
         }
         
@@ -131,9 +131,9 @@
             box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
         }
 
-        /* Güçlendirilmiş Aynalama Efekti (Yeni geniş açı ölçeği entegre edildi) */
+        /* Güçlendirilmiş Aynalama Efekti (Maksimum geniş açı ölçeği entegre edildi) */
         .mirror-effect {
-            transform: scale(-0.5, 0.5) !important;
+            transform: scale(-0.35, 0.35) !important;
         }
 
         /* Konteyner Gizleme Kuralları */
