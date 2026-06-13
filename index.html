@@ -114,7 +114,6 @@
             height: 100%;
             background: #000;
             position: relative;
-            transition: transform 0.3s ease;
         }
         
         /* Terapist ekranındaki video alanı */
@@ -125,7 +124,7 @@
             position: absolute;
             top: 0;
             left: 0;
-            z-index: 1; /* Video alt katmana alındı */
+            z-index: 1;
         }
 
         /* Ortak Video ve Çubuk Kuralları */
@@ -147,7 +146,7 @@
             width: 6px;
             height: 100%;
             background-color: #ff0000;
-            z-index: 5; /* Çizgi videonun üstünde kalacak şekilde en üst katmana çıkarıldı */
+            z-index: 5;
             box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
         }
         
@@ -155,22 +154,6 @@
         .left-panel video.mirror-effect, 
         .right-panel video.mirror-effect {
             transform: scale(-1.18, 1.18);
-        }
-
-        /* Terapist Ekranı İçin Dinamik Ayna Efektleri */
-        .observer-mirror-left {
-            transform: scaleX(-1); /* Sol ayna seçildiğinde görüntüyü yatay çevirir */
-        }
-        .observer-mirror-right {
-            transform: scaleX(-1); /* Sağ ayna seçildiğinde görüntüyü yatay çevirir */
-        }
-
-        /* Terapist Ekranı İçin Dinamik Ayna Efektleri (DÜZELTİLDİ) */
-        .observer-mirror-sag {
-            transform: scaleX(-1); /* Kapsayıcıya uygulanarak çakışma önlendi */
-        }
-        .observer-mirror-sol {
-            transform: scaleX(-1); /* Kapsayıcıya uygulanarak çakışma önlendi */
         }
     </style>
 </head>
@@ -206,13 +189,6 @@
         <h2>Bağlantı Bilgilerini Girin</h2>
         <div class="mode-selection">
             <input type="text" id="target-room-id" placeholder="Oda Kodu (Örn: 4821)">
-            
-            <label style="font-size:0.9rem; color:#aaa; margin-bottom:-10px;">Hastanın Seçtiği Sağlam Taraf:</label>
-            <select id="observer-side-select">
-                <option value="sag">SAĞLAM TARAF: SAĞ</option>
-                <option value="sol">SAĞLAM TARAF: SOL</option>
-            </select>
-
             <button class="btn-success" onclick="startObserverApp()">CANLI YAYINI İZLE</button>
             <button class="btn-secondary" onclick="location.reload()">Geri</button>
         </div>
@@ -298,24 +274,14 @@
             else if (element.webkitRequestFullscreen) element.webkitRequestFullscreen();
         }
 
-        // TERAPİST MODU İŞLEMLERİ
+        // TERAPİST MODU İŞLEMLERİ (SADELEŞTİRİLDİ)
         function startObserverApp() {
             const targetId = document.getElementById('target-room-id').value.trim();
-            const selectedSide = document.getElementById('observer-side-select').value;
             
             if (!targetId) { alert("Lütfen geçerli bir kod girin!"); return; }
 
             document.getElementById('menu-observer').style.display = 'none';
-            
-            // DÜZELTME: Aynalama sınıfını video yerine ana kapsayıcıya (container) uyguluyoruz
-            const obsContainer = document.getElementById('observer-container');
-            obsContainer.style.display = 'block';
-
-            if (selectedSide === 'sag') {
-                obsContainer.classList.add('observer-mirror-sag');
-            } else {
-                obsContainer.classList.add('observer-mirror-sol');
-            }
+            document.getElementById('observer-container').style.display = 'block';
 
             peer = new Peer();
             peer.on('open', function() {
