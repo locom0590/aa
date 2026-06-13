@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>VR Ayna Terapisi - Uzak Odak</title>
+    <title>2D Geniş Açı Ayna Terapisi</title>
     <style>
         * {
             box-sizing: border-box;
@@ -18,7 +18,7 @@
             font-family: sans-serif;
         }
 
-        /* Giriş Ekranı */
+        /* Giriş Menüsü */
         #setup-menu {
             position: absolute;
             top: 0;
@@ -37,7 +37,6 @@
             margin-bottom: 30px;
             font-size: 1.5rem;
             text-align: center;
-            line-height: 1.4;
         }
         .btn-container {
             display: flex;
@@ -50,148 +49,123 @@
             cursor: pointer;
             border: none;
             border-radius: 8px;
-            background: #007bff;
+            background: #28a745;
             color: white;
             transition: background 0.2s;
         }
         button:active {
-            background: #0056b3;
+            background: #1e7e34;
         }
 
-        /* VR Ekran Yapısı (Sol / Sağ Göz Ana Bölmeleri) */
-        #vr-container {
+        /* 2D İkiye Bölünmüş Ana Ekran */
+        #mirror-container {
             display: none;
             width: 100%;
             height: 100%;
+            position: relative;
         }
 
-        .eye-view {
+        /* Ekranı dikey olarak tam ortadan ikiye bölen paneller */
+        .panel {
             width: 50%;
             height: 100%;
             float: left;
             position: relative;
             overflow: hidden;
-            background-color: #000;
+            background: #000;
         }
 
-        /* Görüntü Uzaklığını İki Katına Çıkarma Ayarı:
-           Kamerayı daha uzakta hissettirmek için genişliği daralttık (%50'den %32'ye çektik).
-           Göz yorulmasını önlemek için sol ve sağ yarım küreleri merkeze göre hizaladık.
-        */
-        .half-screen {
-            position: absolute;
-            top: 15%; /* Üstten ve alttan daraltarak sinematik uzaklık hissi verir */
-            width: 32%; /* Yatayda küçülterek objeleri 2 kat daha uzaktaymış gibi gösterir */
-            height: 70%;
-            overflow: hidden;
-            border-radius: 4px;
+        /* Ortadaki net ayrım çizgisi */
+        #left-panel {
+            border-right: 2px solid #333;
         }
 
-        /* Sol Göz Odası İçindeki Dağılım */
-        #left-eye .left-half  { left: 16%; }
-        #left-eye .right-half { left: 52%; }
-
-        /* Sağ Göz Odası İçindeki Dağılım */
-        #right-eye .left-half  { left: 16%; }
-        #right-eye .right-half { left: 52%; }
-
-        /* Video Elementleri */
+        /* Video elementleri:contain kullanarak kameranın gördüğü 
+           geniş açılı görüntüyü kırpmadan ekrana sığdırıyoruz */
         video {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            min-width: 100%;
-            min-height: 100%;
-            object-fit: cover;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain; /* Kameranın tüm açısını korur, görüntüyü kırpmaz */
         }
 
-        /* Yatay Ayna Yansıtma Efekti */
+        /* Yatay Ayna Efekti */
         .mirror-effect {
-            transform: translate(-50%, -50%) scaleX(-1);
+            transform: scaleX(-1);
         }
     </style>
 </head>
 <body>
 
     <div id="setup-menu">
-        <h1>VR AXIS REHABILITATION<br><small>Sağlam Tarafı Seçiniz</small></h1>
+        <h1>2D AYNA TERAPİSİ<br><small>Sağlam Tarafı Seçiniz</small></h1>
         <div class="btn-container">
             <button onclick="startApp('sag')">SAĞ</button>
             <button onclick="startApp('sol')">SOL</button>
         </div>
     </div>
 
-    <div id="vr-container">
+    <div id="mirror-container">
         
-        <div class="eye-view" id="left-eye">
-            <div class="half-screen left-half">
-                <video id="v1" autoplay playsinline muted></video>
-            </div>
-            <div class="half-screen right-half">
-                <video id="v2" autoplay playsinline muted></video>
-            </div>
+        <div class="panel" id="left-panel">
+            <video id="video-left" autoplay playsinline muted></video>
         </div>
 
-        <div class="eye-view" id="right-eye">
-            <div class="half-screen left-half">
-                <video id="v3" autoplay playsinline muted></video>
-            </div>
-            <div class="half-screen right-half">
-                <video id="v4" autoplay playsinline muted></video>
-            </div>
+        <div class="panel" id="right-panel">
+            <video id="video-right" autoplay playsinline muted></video>
         </div>
 
     </div>
 
     <script>
         const setupMenu = document.getElementById('setup-menu');
-        const vrContainer = document.getElementById('vr-container');
+        const mirrorContainer = document.getElementById('mirror-container');
         
-        const videos = [
-            document.getElementById('v1'),
-            document.getElementById('v2'),
-            document.getElementById('v3'),
-            document.getElementById('v4')
-        ];
+        const videoLeft = document.getElementById('video-left');
+        const videoRight = document.getElementById('video-right');
 
         async function startApp(selection) {
             try {
+                // Kameradan maksimum genişlikte veri alabilmek için yüksek çözünürlük hedefliyoruz
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: {
                         facingMode: { exact: "environment" },
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
+                        width: { ideal: 1920 }, // Geniş açı detayları için 1080p hedefi
+                        height: { ideal: 1080 }
                     },
                     audio: false
                 });
                 
-                videos.forEach(video => {
-                    video.srcObject = stream;
-                });
+                videoLeft.srcObject = stream;
+                videoRight.srcObject = stream;
 
             } catch (error) {
-                console.warn("Arka kamera bulunamadı, varsayılan kamera açılıyor...", error);
+                console.warn("Arka kamera hatası, varsayılan kameraya geçiliyor...", error);
                 try {
                     const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-                    videos.forEach(video => {
-                        video.srcObject = fallbackStream;
-                    });
+                    videoLeft.srcObject = fallbackStream;
+                    videoRight.srcObject = fallbackStream;
                 } catch (err) {
-                    alert("Kamera erişimi sağlanamadı: " + err.message);
+                    alert("Kamera açılmadı: " + err.message);
                     return;
                 }
             }
 
-            // Ayna Modu Mantığı
+            // Seçim Mantığı (2D için):
+            // Seçilen taraf orijinal kalır, karşı taraf o orijinal görüntünün tam aynası (yansıması) olur.
             if (selection === 'sag') {
-                document.querySelectorAll('.left-half video').forEach(v => v.classList.add('mirror-effect'));
+                // Sağlam taraf Sağ ise: Sol taraf sağın aynası olur.
+                videoLeft.classList.add('mirror-effect');
             } else if (selection === 'sol') {
-                document.querySelectorAll('.right-half video').forEach(v => v.classList.add('mirror-effect'));
+                // Sağlam taraf Sol ise: Sağ taraf solun aynası olur.
+                videoRight.classList.add('mirror-effect');
             }
 
+            // Arayüzü değiştir ve tam ekrana geç
             setupMenu.style.display = 'none';
-            vrContainer.style.display = 'block';
+            mirrorContainer.style.display = 'block';
             
             triggerFullscreen();
         }
