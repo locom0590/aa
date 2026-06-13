@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>2D Geniş Açı Ayna Terapisi</title>
+    <title>Geniş Açı VR Ayna Terapisi (3D)</title>
     <style>
         * {
             box-sizing: border-box;
@@ -49,46 +49,50 @@
             cursor: pointer;
             border: none;
             border-radius: 8px;
-            background: #28a745;
+            background: #007bff;
             color: white;
             transition: background 0.2s;
         }
         button:active {
-            background: #1e7e34;
+            background: #0056b3;
         }
 
-        /* 2D İkiye Bölünmüş Ana Ekran */
-        #mirror-container {
+        /* VR Ana Konteyner (Ekranı sol ve sağ göz olarak ikiye böler) */
+        #vr-container {
             display: none;
             width: 100%;
             height: 100%;
-            position: relative;
         }
 
-        /* Ekranı dikey olarak tam ortadan ikiye bölen paneller */
-        .panel {
+        .eye-view {
             width: 50%;
             height: 100%;
             float: left;
             position: relative;
             overflow: hidden;
-            background: #000;
+            background-color: #000;
         }
 
-        /* Ortadaki net ayrım çizgisi */
-        #left-panel {
-            border-right: 2px solid #333;
+        /* Her gözün kendi içindeki ikiye bölünmüş geniş açılı panelleri */
+        .panel {
+            position: absolute;
+            top: 0;
+            width: 50%;
+            height: 100%;
+            overflow: hidden;
         }
 
-        /* Video elementleri:contain kullanarak kameranın gördüğü 
-           geniş açılı görüntüyü kırpmadan ekrana sığdırıyoruz */
+        .left-panel { left: 0; }
+        .right-panel { left: 50%; }
+
+        /* Videolar: 'contain' modunda kalarak geniş açıyı korur ve kırpma yapmaz */
         video {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            object-fit: contain; /* Kameranın tüm açısını korur, görüntüyü kırpmaz */
+            object-fit: contain;
         }
 
         /* Yatay Ayna Efekti */
@@ -100,72 +104,88 @@
 <body>
 
     <div id="setup-menu">
-        <h1>2D AYNA TERAPİSİ<br><small>Sağlam Tarafı Seçiniz</small></h1>
+        <h1>VR GENİŞ AÇI AYNA TERAPİSİ<br><small>Sağlam Tarafı Seçiniz</small></h1>
         <div class="btn-container">
             <button onclick="startApp('sag')">SAĞ</button>
             <button onclick="startApp('sol')">SOL</button>
         </div>
     </div>
 
-    <div id="mirror-container">
+    <div id="vr-container">
         
-        <div class="panel" id="left-panel">
-            <video id="video-left" autoplay playsinline muted></video>
+        <div class="eye-view" id="left-eye">
+            <div class="panel left-panel">
+                <video id="v1" autoplay playsinline muted></video>
+            </div>
+            <div class="panel right-panel">
+                <video id="v2" autoplay playsinline muted></video>
+            </div>
         </div>
 
-        <div class="panel" id="right-panel">
-            <video id="video-right" autoplay playsinline muted></video>
+        <div class="eye-view" id="right-eye">
+            <div class="panel left-panel">
+                <video id="v3" autoplay playsinline muted></video>
+            </div>
+            <div class="panel right-panel">
+                <video id="v4" autoplay playsinline muted></video>
+            </div>
         </div>
 
     </div>
 
     <script>
         const setupMenu = document.getElementById('setup-menu');
-        const mirrorContainer = document.getElementById('mirror-container');
+        const vrContainer = document.getElementById('vr-container');
         
-        const videoLeft = document.getElementById('video-left');
-        const videoRight = document.getElementById('video-right');
+        const videos = [
+            document.getElementById('v1'),
+            document.getElementById('v2'),
+            document.getElementById('v3'),
+            document.getElementById('v4')
+        ];
 
         async function startApp(selection) {
             try {
-                // Kameradan maksimum genişlikte veri alabilmek için yüksek çözünürlük hedefliyoruz
+                // Geniş açı için yüksek çözünürlük parametrelerini koruyoruz
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: {
                         facingMode: { exact: "environment" },
-                        width: { ideal: 1920 }, // Geniş açı detayları için 1080p hedefi
+                        width: { ideal: 1920 },
                         height: { ideal: 1080 }
                     },
                     audio: false
                 });
                 
-                videoLeft.srcObject = stream;
-                videoRight.srcObject = stream;
+                videos.forEach(video => {
+                    video.srcObject = stream;
+                });
 
             } catch (error) {
                 console.warn("Arka kamera hatası, varsayılan kameraya geçiliyor...", error);
                 try {
                     const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-                    videoLeft.srcObject = fallbackStream;
-                    videoRight.srcObject = fallbackStream;
+                    videos.forEach(video => {
+                        video.srcObject = fallbackStream;
+                    });
                 } catch (err) {
                     alert("Kamera açılmadı: " + err.message);
                     return;
                 }
             }
 
-            // Seçim Mantığı (2D için):
-            // Seçilen taraf orijinal kalır, karşı taraf o orijinal görüntünün tam aynası (yansıması) olur.
+            // Seçim Mantığı (Geniş Açılı Stereoskopik Mod):
+            // Sol ve Sağ göz alanlarındaki ilgili panelleri ayna moduna alıyoruz.
             if (selection === 'sag') {
-                // Sağlam taraf Sağ ise: Sol taraf sağın aynası olur.
-                videoLeft.classList.add('mirror-effect');
+                // Sağlam taraf Sağ ise: Her iki gözün de SOL paneli ayna (yansıma) olur.
+                document.querySelectorAll('.left-panel video').forEach(v => v.classList.add('mirror-effect'));
             } else if (selection === 'sol') {
-                // Sağlam taraf Sol ise: Sağ taraf solun aynası olur.
-                videoRight.classList.add('mirror-effect');
+                // Sağlam taraf Sol ise: Her iki gözün de SAĞ paneli ayna (yansıma) olur.
+                document.querySelectorAll('.right-panel video').forEach(v => v.classList.add('mirror-effect'));
             }
 
             // Arayüzü değiştir ve tam ekrana geç
             setupMenu.style.display = 'none';
-            mirrorContainer.style.display = 'block';
+            vrContainer.style.display = 'block';
             
             triggerFullscreen();
         }
