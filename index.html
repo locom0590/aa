@@ -83,19 +83,11 @@
             letter-spacing: 2px;
         }
 
-        /* ORTAK VR EKRAN YAPISI (Hem Hasta Hem Terapist Kapsayıcısı İçin) */
+        /* YENİ 2D EKRAN MOTORU YAPISI (Hem Hasta Hem Terapist İçin Ortak) */
         .vr-display-engine {
             width: 100%;
             height: 100%;
             position: relative;
-        }
-        .eye-view {
-            width: 50%;
-            height: 100%;
-            float: left;
-            position: relative;
-            overflow: hidden;
-            background-color: #000;
         }
         .panel {
             position: absolute;
@@ -107,14 +99,14 @@
         .left-panel { left: 0; }
         .right-panel { left: 50%; }
 
-        /* Video Çerçeve Yerleşimi */
+        /* Video Yerleşim Kuralları */
         .panel video {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            object-fit: cover; /* Contain yerine Cover yapılarak siyah boşluklar engellendi */
+            object-fit: cover;
             transform-origin: center center;
         }
         
@@ -130,34 +122,17 @@
             box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
         }
 
-        /* DİNAMİK AYNALAMA EFEKTLERİ (Burası düzeltildi) */
+        /* Güçlendirilmiş Aynalama Efekti */
         .mirror-effect {
             transform: scaleX(-1) !important;
         }
 
-        /* HASTA VE TERAPİST KAPSAYICILARI */
-        #vr-container {
+        /* Konteyner Gizleme Kuralları */
+        #vr-container, #observer-container {
             display: none;
             width: 100%;
             height: 100%;
         }
-
-        /* Terapist için 2D Akıllı Filtre */
-        #observer-container {
-            display: none;
-            width: 100%;
-            height: 100%;
-            background: #000;
-            position: relative;
-        }
-        
-        /* Terapistin tek bir gözü (Sol Göz Yapısını) dev bir 2D monitör gibi tam ekrana büyütüyoruz */
-        #observer-container .eye-view {
-            width: 100% !important;
-            height: 100% !important;
-            float: none;
-        }
-    </head>
     </style>
 </head>
 <body>
@@ -183,9 +158,9 @@
         <h2>Terapist İçin Bağlantı Kodu:</h2>
         <div class="room-id-display" id="room-id-text">Üretiliyor...</div>
         <p style="color:#aaa; text-align:center; font-size:0.9rem; margin-bottom:20px;">
-            Bu kodu izleyici cihaza girip bağlantı kurulduktan sonra<br>telefonu VR Box'a yerleştirebilirsiniz.
+            Bu kodu izleyici cihaza girip bağlantı kurulduktan sonra<br>cihazı kullanmaya başlayabilirsiniz.
         </p>
-        <button class="btn-success" style="width:100%; max-width:320px;" onclick="activateVRView()">VR EKRANINA GEÇ</button>
+        <button class="btn-success" style="width:100%; max-width:320px;" onclick="activateVRView()">EKRANA GEÇ</button>
     </div>
 
     <div id="menu-observer" class="menu-panel" style="display:none;">
@@ -198,24 +173,15 @@
     </div>
 
     <div id="vr-container" class="vr-display-engine">
-        <div class="eye-view" id="left-eye">
-            <div class="panel left-panel"><video id="v1" autoplay playsinline muted></video></div>
-            <div class="center-divider"></div>
-            <div class="panel right-panel"><video id="v2" autoplay playsinline muted></video></div>
-        </div>
-        <div class="eye-view" id="right-eye">
-            <div class="panel left-panel"><video id="v3" autoplay playsinline muted></video></div>
-            <div class="center-divider"></div>
-            <div class="panel right-panel"><video id="v4" autoplay playsinline muted></video></div>
-        </div>
+        <div class="panel left-panel"><video id="v1" autoplay playsinline muted></video></div>
+        <div class="center-divider"></div>
+        <div class="panel right-panel"><video id="v2" autoplay playsinline muted></video></div>
     </div>
 
     <div id="observer-container" class="vr-display-engine">
-        <div class="eye-view">
-            <div class="panel left-panel"><video id="t1" autoplay playsinline></video></div>
-            <div class="center-divider"></div>
-            <div class="panel right-panel"><video id="t2" autoplay playsinline></video></div>
-        </div>
+        <div class="panel left-panel"><video id="t1" autoplay playsinline></video></div>
+        <div class="center-divider"></div>
+        <div class="panel right-panel"><video id="t2" autoplay playsinline></video></div>
     </div>
 
     <script>
@@ -224,8 +190,7 @@
         let myRoomId = "";
 
         const patientVideos = [
-            document.getElementById('v1'), document.getElementById('v2'),
-            document.getElementById('v3'), document.getElementById('v4')
+            document.getElementById('v1'), document.getElementById('v2')
         ];
         
         const observerVideos = [
@@ -258,7 +223,7 @@
             
             patientVideos.forEach(v => v.srcObject = localStream);
 
-            // DÜZELTME: Hasta ekranındaki tırnak hatası ve seçici çakışması giderildi
+            // Hasta ekranı simetri ayarı (2D paneller için)
             if (selection === 'sag') {
                 document.querySelectorAll('#vr-container .left-panel video').forEach(v => v.classList.add('mirror-effect'));
             } else {
@@ -270,7 +235,6 @@
 
             peer = new Peer(myRoomId);
             peer.on('call', function(call) {
-                // Terapiste sağlam taraf bilgisini metadata ile gizlice gönderiyoruz
                 call.answer(localStream, { metadata: { side: selection } });
             });
         }
@@ -299,13 +263,12 @@
                 
                 const call = peer.call(targetId, dummyStream);
                 
-                // Terapist bağlandığı an hastanın seçtiği taraf bilgisini otomatik alıyor
                 call.on('stream', function(remoteStream) {
                     observerVideos.forEach(v => v.srcObject = remoteStream);
                     
                     const patientSelectedSide = call.metadata ? call.metadata.side : 'sag';
                     
-                    // Terapist ekranındaki ilgili bölmeyi hastayla otomatik eşzamanlı aynala
+                    // Terapist ekranı hastanın seçimine göre birebir aynı taraftaki paneli aynalar
                     if (patientSelectedSide === 'sag') {
                         document.querySelectorAll('#observer-container .left-panel video').forEach(v => v.classList.add('mirror-effect'));
                     } else {
