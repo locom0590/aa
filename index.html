@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>VR Ayna Terapisi & Senkronize İzleme</title>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
     <style>
         * {
             box-sizing: border-box;
@@ -88,34 +93,21 @@
             width: 100%;
             height: 100%;
             position: relative;
+            display: none;
         }
-        .eye-view {
+        
+        /* WebGL 3D Canvas Alanları */
+        .eye-canvas-container {
             width: 50%;
             height: 100%;
             float: left;
             position: relative;
-            overflow: hidden;
             background-color: #000;
         }
-        .panel {
-            position: absolute;
-            top: 0;
-            width: 50%;
-            height: 100%;
-            overflow: hidden;
-        }
-        .left-panel { left: 0; }
-        .right-panel { left: 50%; }
-
-        /* Video Yerleşim Kuralları */
-        .panel video {
-            position: absolute;
-            top: 0;
-            left: 0;
+        canvas {
             width: 100%;
             height: 100%;
-            object-fit: cover;
-            transform-origin: center center;
+            display: block;
         }
         
         .center-divider {
@@ -130,27 +122,19 @@
             box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
         }
 
-        /* Güçlendirilmiş Aynalama Efekti */
-        .mirror-effect {
-            transform: scaleX(-1) !important;
-        }
-
-        /* Konteyner Gizleme Kuralları */
-        #vr-container, #observer-container {
-            display: none;
-            width: 100%;
-            height: 100%;
-        }
-
-        /* Terapist İçin Özel 2D Monitör Filtresi */
-        #observer-container .eye-view {
-            width: 100% !important;
-            height: 100% !important;
-            float: none;
+        /* Görünmez Veri Toplama Kamerası */
+        #hidden-video {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
         }
     </style>
 </head>
 <body>
+
+    <video id="hidden-video" playsinline></video>
 
     <div id="menu-role" class="menu-panel">
         <h1>VR AXIS REHABILITATION</h1>
@@ -161,20 +145,11 @@
     </div>
 
     <div id="menu-patient" class="menu-panel" style="display:none;">
-        <h2>Sağlam Tarafı Seçin</h2>
+        <h2>Sağlam Tarafı Seçip Yayını Başlatın</h2>
         <div class="mode-selection">
-            <button class="btn-primary" onclick="selectSide('sag')">SAĞ</button>
-            <button class="btn-primary" onclick="selectSide('sol')">SOL</button>
+            <button class="btn-primary" onclick="startPatientApp('sag')">SAĞ</button>
+            <button class="btn-primary" onclick="startPatientApp('sol')">SOL</button>
             <button class="btn-secondary" onclick="location.reload()">Geri</button>
-        </div>
-    </div>
-
-    <div id="menu-zoom" class="menu-panel" style="display:none;">
-        <h2>Çalışma Alanını Seçin</h2>
-        <div class="mode-selection">
-            <button class="btn-primary" onclick="startPatientApp('x1')">Sadece Eller (x1 Standart Açı)</button>
-            <button class="btn-success" onclick="startPatientApp('x05')">Dirsekler Dahil (x0.5 Geniş Açı)</button>
-            <button class="btn-secondary" onclick="backToSideSelection()">Geri</button>
         </div>
     </div>
 
@@ -197,120 +172,176 @@
     </div>
 
     <div id="vr-container" class="vr-display-engine">
-        <div class="eye-view" id="left-eye">
-            <div class="panel left-panel"><video id="v1" autoplay playsinline muted></video></div>
+        <div class="eye-canvas-container">
             <div class="center-divider"></div>
-            <div class="panel right-panel"><video id="v2" autoplay playsinline muted></video></div>
+            <canvas id="leftEyeCanvas"></canvas>
         </div>
-        <div class="eye-view" id="right-eye">
-            <div class="panel left-panel"><video id="v3" autoplay playsinline muted></video></div>
+        <div class="eye-canvas-container">
             <div class="center-divider"></div>
-            <div class="panel right-panel"><video id="v4" autoplay playsinline muted></video></div>
+            <canvas id="rightEyeCanvas"></canvas>
         </div>
     </div>
 
     <div id="observer-container" class="vr-display-engine">
-        <div class="eye-view">
-            <div class="panel left-panel"><video id="t1" autoplay playsinline></video></div>
-            <div class="center-divider"></div>
-            <div class="panel right-panel"><video id="t2" autoplay playsinline></video></div>
+        <div style="width:100%; height:100%;">
+            <canvas id="observerCanvas"></canvas>
         </div>
     </div>
 
     <script>
         let peer = null;
-        let localStream = null;
         let myRoomId = "";
-        let selectedSide = ""; // Seçilen tarafı hafızada tutmak için global değişken
+        let selectedSide = "sag";
+        let isObserver = false;
 
-        const patientVideos = [
-            document.getElementById('v1'), document.getElementById('v2'),
-            document.getElementById('v3'), document.getElementById('v4')
-        ];
-        
-        const observerVideos = [
-            document.getElementById('t1'), document.getElementById('t2')
-        ];
+        // Three.js Global Kurulum Değişkenleri
+        let scenes = {}, cameras = {}, renderers = {}, handModels = {};
+        const connections = [[0,1], [1,2], [2,3], [3,4], [0,5], [5,6], [6,7], [7,8], [5,9], [9,10], [10,11], [11,12], [9,13], [13,14], [14,15], [15,16], [0,17], [17,18], [18,19], [19,20], [5,17]];
 
         function selectRole(role) {
             document.getElementById('menu-role').style.display = 'none';
             if (role === 'patient') {
                 document.getElementById('menu-patient').style.display = 'flex';
             } else {
+                isObserver = true;
                 document.getElementById('menu-observer').style.display = 'flex';
             }
         }
 
-        // Taraf seçimi sonrası açı seçimine yönlendirme adımı
-        function selectSide(side) {
-            selectedSide = side;
+        // Three.js 3D Sahne Hazırlayıcı (Hafifletilmiş Mimaride Sıfır Kasılma)
+        function init3D(canvasId, key) {
+            const canvas = document.getElementById(canvasId);
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000);
+
+            // Geniş açı etkisi yaratmak için Kamera FOV değerini 75 yaptık ve biraz geriye yerleştirdik
+            const camera = new THREE.PerspectiveCamera(75, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
+            camera.position.set(0, 0, 12); 
+
+            const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+            renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+
+            // 3D İskelet El Yapısı Grubu
+            const handGroup = new THREE.Group();
+            
+            // 21 Eklem Noktası Küresi
+            const jointGeo = new THREE.SphereGeometry(0.25, 8, 8);
+            const jointMat = new THREE.MeshBasicMaterial({ color: 0x00ffcc });
+            for(let i=0; i<21; i++) {
+                const mesh = new THREE.Mesh(jointGeo, jointMat);
+                handGroup.add(mesh);
+            }
+
+            // Eklemleri Birleştiren Çizgiler (Kemikler)
+            const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 });
+            connections.forEach(() => {
+                const geometry = new THREE.BufferGeometry();
+                const positions = new Float32Array(6);
+                geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                const line = new THREE.Line(geometry, lineMat);
+                handGroup.add(line);
+            });
+
+            scene.add(handGroup);
+            
+            scenes[key] = scene;
+            cameras[key] = camera;
+            renderers[key] = renderer;
+            handModels[key] = handGroup;
+        }
+
+        // Yapay Zekadan Gelen El Noktalarını 3D Evrene Güncelleyen Fonksiyon
+        function update3DHand(landmarks, key, shouldMirror) {
+            const handGroup = handModels[key];
+            if (!handGroup || !landmarks) return;
+
+            // 21 Eklem Yerleşimi ve Aynalama Motoru
+            for (let i = 0; i < 21; i++) {
+                let x = (landmarks[i].x - 0.5) * 15;
+                let y = -(landmarks[i].y - 0.5) * 15;
+                let z = -landmarks[i].z * 10;
+
+                if (shouldMirror) x = -x; // Ayna İllüzyonunu tetikleyen kritik satır
+
+                handGroup.children[i].position.set(x, y, z);
+            }
+
+            // Kemik Çizgilerinin Güncellenmesi
+            let lineIdx = 21;
+            connections.forEach(pair => {
+                const p1 = handGroup.children[pair[0]].position;
+                const p2 = handGroup.children[pair[1]].position;
+                const line = handGroup.children[lineIdx];
+                
+                const pos = line.geometry.attributes.position.array;
+                pos[0] = p1.x; pos[1] = p1.y; pos[2] = p1.z;
+                pos[3] = p2.x; pos[4] = p2.y; pos[5] = p2.z;
+                line.geometry.attributes.position.needsUpdate = true;
+                lineIdx++;
+            });
+
+            renderers[key].render(scenes[key], cameras[key]);
+        }
+
+        // HASTA MODU BAŞLANGICI
+        async function startPatientApp(selection) {
+            selectedSide = selection;
             document.getElementById('menu-patient').style.display = 'none';
-            document.getElementById('menu-zoom').style.display = 'flex';
-        }
-
-        function backToSideSelection() {
-            document.getElementById('menu-zoom').style.display = 'none';
-            document.getElementById('menu-patient').style.display = 'flex';
-        }
-
-        // HASTA MODU İŞLEMLERİ (Açı Seçimine Göre Çalışır)
-        async function startPatientApp(zoomMode) {
-            document.getElementById('menu-zoom').style.display = 'none';
             document.getElementById('menu-room-display').style.display = 'flex';
 
-            let constraints = {
-                video: { facingMode: { exact: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
-                audio: false
-            };
+            // VR Sahnesi Başlatma
+            init3D('leftEyeCanvas', 'left');
+            init3D('rightEyeCanvas', 'right');
 
-            // Eğer hasta x0.5 (Geniş Açı/Dirsek) modunu seçtiyse, tarayıcıya ek parametre ipuçları verilir
-            if (zoomMode === 'x05') {
-                constraints.video.advanced = [
-                    { focusMode: "continuous" },
-                    { exposureMode: "continuous" }
-                ];
-            }
+            const videoElement = document.getElementById('hidden-video');
 
-            try {
-                // Kamera akışını başlatmayı dene
-                if (zoomMode === 'x05' && navigator.mediaDevices.enumerateDevices) {
-                    // Cihazdaki tüm kameraları listele
-                    const devices = await navigator.mediaDevices.enumerateDevices();
-                    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+            // MediaPipe El Takip Kurulumu
+            const hands = new Hands({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+            });
+            hands.setOptions({
+                maxNumHands: 1,
+                modelComplexity: 1,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+
+            hands.onResults((results) => {
+                if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                    const landmarks = results.multiHandLandmarks[0];
                     
-                    // Geniş açılı arka kameralar genelde listenin sonlarında yer alır, akıllı eşleşme denemesi
-                    if (videoDevices.length > 1) {
-                        constraints.video.deviceId = { exact: videoDevices[videoDevices.length - 1].deviceId };
+                    // Seçilen tarafa göre gözlere aynalı/aynasız veriyi basma kuralları
+                    const mirrorLeft = (selectedSide === 'sag');
+                    const mirrorRight = (selectedSide === 'sag');
+
+                    update3DHand(landmarks, 'left', mirrorLeft);
+                    update3DHand(landmarks, 'right', mirrorRight);
+
+                    // Terapiste anlık el koordinat matrisini data-channel ile gönderme
+                    if (peer && peer.connections) {
+                        for (let connId in peer.connections) {
+                            peer.connections[connId].forEach(conn => {
+                                if (conn.open && conn.send) {
+                                    conn.send({ landmarks, side: selectedSide });
+                                }
+                            });
+                        }
                     }
                 }
-                localStream = await navigator.mediaDevices.getUserMedia(constraints);
-            } catch (error) {
-                console.warn("Seçilen spesifik kamera modu yüklenemedi, varsayılana dönülüyor...");
-                try {
-                    localStream = await navigator.mediaDevices.getUserMedia({
-                        video: { facingMode: { exact: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
-                        audio: false
-                    });
-                } catch (fallbackError) {
-                    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-                }
-            }
-            
-            patientVideos.forEach(v => v.srcObject = localStream);
+            });
 
-            // Hasta 3D ekranı bölgesel aynalama ayarı (Hafızadaki selectedSide kullanılır)
-            if (selectedSide === 'sag') {
-                document.querySelectorAll('#vr-container .left-panel video').forEach(v => v.classList.add('mirror-effect'));
-            } else {
-                document.querySelectorAll('#vr-container .right-panel video').forEach(v => v.classList.add('mirror-effect'));
-            }
+            const camera = new Camera(videoElement, {
+                onFrame: async () => { await hands.send({ image: videoElement }); },
+                width: 640, height: 480
+            });
+            camera.start();
 
             myRoomId = Math.floor(1000 + Math.random() * 9000).toString();
             document.getElementById('room-id-text').innerText = myRoomId;
 
             peer = new Peer(myRoomId);
-            peer.on('call', function(call) {
-                call.answer(localStream, { metadata: { side: selectedSide } });
+            peer.on('connection', function(conn) {
+                // Terapist bağlandığında tokalaşma doğrulaması
             });
         }
 
@@ -323,7 +354,7 @@
             else if (element.webkitRequestFullscreen) element.webkitRequestFullscreen();
         }
 
-        // TERAPİST MODU İŞLEMLERİ
+        // TERAPİST MODU BAŞLANGICI
         function startObserverApp() {
             const targetId = document.getElementById('target-room-id').value.trim();
             if (!targetId) { alert("Lütfen geçerli bir kod girin!"); return; }
@@ -331,27 +362,30 @@
             document.getElementById('menu-observer').style.display = 'none';
             document.getElementById('observer-container').style.display = 'block';
 
+            init3D('observerCanvas', 'observer');
+
             peer = new Peer();
             peer.on('open', function() {
-                const dummyCanvas = document.createElement('canvas');
-                const dummyStream = dummyCanvas.captureStream ? dummyCanvas.captureStream() : null;
-                
-                const call = peer.call(targetId, dummyStream);
-                
-                call.on('stream', function(remoteStream) {
-                    observerVideos.forEach(v => v.srcObject = remoteStream);
-                    
-                    const patientSelectedSide = call.metadata ? call.metadata.side : 'sag';
-                    
-                    // Terapist 2D ekranı otomatik senkronize aynalama ayarı
-                    if (patientSelectedSide === 'sag') {
-                        document.querySelectorAll('#observer-container .left-panel video').forEach(v => v.classList.add('mirror-effect'));
-                    } else {
-                        document.querySelectorAll('#observer-container .right-panel video').forEach(v => v.classList.add('mirror-effect'));
-                    }
+                const conn = peer.connect(targetId);
+                conn.on('data', function(data) {
+                    // Hastadan gelen koordinat verilerini 2D ekranda simüle etme
+                    const mirrorObserver = (data.side === 'sag');
+                    update3DHand(data.landmarks, 'observer', mirrorObserver);
                 });
             });
         }
+
+        // Ekran boyutları değiştiğinde 3D motorların bozulmaması için otomatik scale ayarı
+        window.addEventListener('resize', () => {
+            ['left', 'right', 'observer'].forEach(key => {
+                if (renderers[key]) {
+                    const canvas = renderers[key].domElement;
+                    cameras[key].aspect = canvas.clientWidth / canvas.clientHeight;
+                    cameras[key].updateProjectionMatrix();
+                    renderers[key].setSize(canvas.clientWidth, canvas.clientHeight);
+                }
+            });
+        });
     </script>
 </body>
 </html>
