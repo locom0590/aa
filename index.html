@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>VR Ayna Terapisi & Canlı İzleme Sunumu</title>
+    <title>VR Ayna Terapisi & Senkronize İzleme</title>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <style>
         * {
@@ -60,7 +60,7 @@
         .btn-success { background: #28a745; }
         .btn-secondary { background: #6c757d; margin-top: 10px; width: 100%; }
         
-        input {
+        input, select {
             padding: 12px;
             font-size: 1.1rem;
             border-radius: 6px;
@@ -113,15 +113,19 @@
             width: 100%;
             height: 100%;
             background: #000;
+            position: relative;
         }
+        
+        /* Terapist ekranındaki video alanı */
         #observer-video {
             width: 100%;
             height: 100%;
             object-fit: contain;
+            transition: transform 0.3s ease;
         }
 
         /* Ortak Video ve Çubuk Kuralları */
-        video {
+        #vr-container video {
             position: absolute;
             top: 0;
             left: 0;
@@ -142,9 +146,19 @@
             z-index: 5;
             box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
         }
+        
+        /* Hasta Ekranı Ayna Efektleri */
         .left-panel video.mirror-effect, 
         .right-panel video.mirror-effect {
             transform: scale(-1.18, 1.18);
+        }
+
+        /* Terapist Ekranı İçin Dinamik Ayna Efektleri */
+        .observer-mirror-left {
+            transform: scaleX(-1); /* Sol ayna seçildiğinde görüntüyü yatay çevirir */
+        }
+        .observer-mirror-right {
+            transform: scaleX(-1); /* Sağ ayna seçildiğinde görüntüyü yatay çevirir */
         }
     </style>
 </head>
@@ -177,9 +191,16 @@
     </div>
 
     <div id="menu-observer" class="menu-panel" style="display:none;">
-        <h2>Bağlanılacak Oda Kodunu Girin</h2>
+        <h2>Bağlantı Bilgilerini Girin</h2>
         <div class="mode-selection">
-            <input type="text" id="target-room-id" placeholder="Örn: 4821">
+            <input type="text" id="target-room-id" placeholder="Oda Kodu (Örn: 4821)">
+            
+            <label style="font-size:0.9rem; color:#aaa; margin-bottom:-10px;">Hastanın Seçtiği Sağlam Taraf:</label>
+            <select id="observer-side-select">
+                <option value="sag">SAĞLAM TARAF: SAĞ</option>
+                <option value="sol">SAĞLAM TARAF: SOL</option>
+            </select>
+
             <button class="btn-success" onclick="startObserverApp()">CANLI YAYINI İZLE</button>
             <button class="btn-secondary" onclick="location.reload()">Geri</button>
         </div>
@@ -200,6 +221,7 @@
 
     <div id="observer-container">
         <video id="observer-video" autoplay playsinline></video>
+        <div class="center-divider"></div> 
     </div>
 
     <script>
@@ -221,12 +243,11 @@
             }
         }
 
-        // HASTA REJİMİ
+        // HASTA MODU İŞLEMLERİ
         async function startPatientApp(selection) {
             document.getElementById('menu-patient').style.display = 'none';
             document.getElementById('menu-room-display').style.display = 'flex';
 
-            // 1. Kamerayı Aç
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({
                     video: { facingMode: { exact: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
@@ -239,20 +260,18 @@
                 videos.forEach(v => v.srcObject = localStream);
             }
 
-            // Ayna yön ayarı
+            // Hasta ekranı simetri ayarı
             if (selection === 'sag') {
                 document.querySelectorAll('.left-panel video').forEach(v => v.classList.add('mirror-effect'));
             } else {
                 document.querySelectorAll('.right-panel video').forEach(v => v.classList.add('mirror-effect'));
             }
 
-            // 2. Peer sunucusuna bağlan ve rastgele 4 haneli oda ID üret
+            // Güvenli rastgele oda ID üretimi
             myRoomId = Math.floor(1000 + Math.random() * 9000).toString();
             document.getElementById('room-id-text').innerText = myRoomId;
 
             peer = new Peer(myRoomId);
-            
-            // Terapist bağlandığında görüntüyü ona gönder
             peer.on('call', function(call) {
                 call.answer(localStream);
             });
@@ -262,32 +281,37 @@
             document.getElementById('menu-room-display').style.display = 'none';
             document.getElementById('vr-container').style.display = 'block';
             
-            // Tam ekrana geç
             const element = document.documentElement;
             if (element.requestFullscreen) element.requestFullscreen();
             else if (element.webkitRequestFullscreen) element.webkitRequestFullscreen();
         }
 
-        // TERAPİST REJİMİ
+        // TERAPİST MODU İŞLEMLERİ
         function startObserverApp() {
             const targetId = document.getElementById('target-room-id').value.trim();
+            const selectedSide = document.getElementById('observer-side-select').value;
+            
             if (!targetId) { alert("Lütfen geçerli bir kod girin!"); return; }
 
             document.getElementById('menu-observer').style.display = 'none';
             document.getElementById('observer-container').style.display = 'block';
 
-            // Rastgele bir izleyici kimliğiyle sunucuya bağlan
+            const obsVideo = document.getElementById('observer-video');
+
+            // Klinik Senkronizasyon: Terapist ekranındaki ham videoyu hastanın seçimine göre aynala
+            if (selectedSide === 'sag') {
+                obsVideo.classList.add('observer-mirror-sag');
+            } else {
+                obsVideo.classList.add('observer-mirror-sol');
+            }
+
             peer = new Peer();
-            
             peer.on('open', function() {
-                // Boş bir akış yaratıp hastayı ara (WebRTC kuralları gereği)
                 const dummyCanvas = document.createElement('canvas');
                 const dummyStream = dummyCanvas.captureStream ? dummyCanvas.captureStream() : null;
                 
                 const call = peer.call(targetId, dummyStream);
-                
                 call.on('stream', function(remoteStream) {
-                    const obsVideo = document.getElementById('observer-video');
                     obsVideo.srcObject = remoteStream;
                 });
             });
